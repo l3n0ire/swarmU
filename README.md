@@ -4,9 +4,9 @@ A single-file roguelike bullet hell game. Survive increasingly difficult waves o
 
 ## How to Play
 
-Open [index.html](index.html) directly in a browser
+Open [l3n0ire.github.io/swarmU](https://l3n0ire.github.io/swarmU/) directly in a browser
 
-For the PS Vita browser (and other old ES5-only browsers), use [psvita/index.html](psvita/index.html) instead
+For the PS Vita browser (and other old ES5-only browsers), use [l3n0ire.github.io/swarmU/psvite](https://l3n0ire.github.io/swarmU/psvita) instead
 
 ## Controls
 
