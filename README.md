@@ -6,6 +6,8 @@ A single-file roguelike bullet hell game. Survive increasingly difficult waves o
 
 Open [index.html](index.html) directly in a browser
 
+For the PS Vita browser (and other old ES5-only browsers), use [psvita/index.html](psvita/index.html) instead
+
 ## Controls
 
 - `W A S D` / arrow keys — move
