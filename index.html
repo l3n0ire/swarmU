@@ -51,7 +51,8 @@
   #cards{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:900px}
   .card{pointer-events:auto;cursor:pointer;width:min(240px,85vw);background:var(--card);border:1px solid var(--card-edge);
         border-radius:12px;padding:22px 18px;text-align:left;transition:transform .12s,border-color .12s,box-shadow .12s}
-  .card:hover{transform:translateY(-6px);border-color:var(--xp);box-shadow:0 0 24px rgba(57,240,195,.35)}
+  .card:hover,.card.sel{transform:translateY(-6px);border-color:var(--xp);box-shadow:0 0 24px rgba(57,240,195,.35)}
+  .card.sel{border-color:var(--gold);box-shadow:0 0 26px rgba(255,209,102,.55)}
   .card .icon{font-size:34px;margin-bottom:10px}
   .card .name{font-size:16px;font-weight:bold;letter-spacing:1px;margin-bottom:6px;color:var(--ink)}
   .card .lvl{font-size:11px;color:var(--gold);letter-spacing:1px;margin-bottom:8px}
@@ -85,13 +86,15 @@
 </div>
 
 <div id="banner"></div>
+<div id="gpdebug" style="position:fixed;bottom:4px;left:4px;font-size:11px;color:#7d74a8;z-index:20;pointer-events:none;max-width:96vw;overflow-wrap:break-word"></div>
 
 <div id="menu" class="overlay">
   <h1>swarmU</h1>
   <div class="sub">
     Survive the swarm. You fire automatically — just keep moving.<br><br>
     <kbd>W A S D</kbd> / <kbd>←↑↓→</kbd> move &nbsp;·&nbsp; <kbd>P</kbd> pause<br>
-    (touch: drag anywhere to move)<br><br>
+    <kbd>L-STICK</kbd> or <kbd>D-Pad</kbd> move<br>
+    <kbd>TOUCH</kbd> drag anywhere to move<br><br>
     Grab <span style="color:var(--xp)">◆ gems</span> to level up and choose upgrades.<br>
     It only gets harder from here.
   </div>
@@ -216,6 +219,11 @@ window.addEventListener("keydown", e=>{
   keys[e.key.toLowerCase()] = true;
   if((e.key==="p"||e.key==="P"||e.key==="Escape") && state==="play") togglePause();
   else if((e.key==="p"||e.key==="P"||e.key==="Escape") && state==="pause") togglePause();
+  if(state==="levelup"){
+    if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A") selectLevelupCard(levelupSel-1);
+    else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D") selectLevelupCard(levelupSel+1);
+    else if(e.key==="Enter"||e.key===" ") confirmLevelupCard();
+  }
   if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
 });
 window.addEventListener("keyup", e=>keys[e.key.toLowerCase()] = false);
@@ -225,6 +233,45 @@ let touch = {active:false, sx:0, sy:0, dx:0, dy:0};
 cv.addEventListener("pointerdown", e=>{touch.active=true;touch.sx=e.clientX;touch.sy=e.clientY;touch.dx=0;touch.dy=0});
 cv.addEventListener("pointermove", e=>{if(touch.active){touch.dx=e.clientX-touch.sx;touch.dy=e.clientY-touch.sy}});
 window.addEventListener("pointerup", ()=>{touch.active=false;touch.dx=0;touch.dy=0});
+
+// gamepad (PS Vita / any controller exposed via the Gamepad API)
+const GAMEPAD_DEADZONE = 0.2;
+const GP_DEBUG = false; // set true to show raw gamepad state on screen
+const DPAD_BUTTONS = new Set([12,13,14,15]);
+let gp = {mx:0, my:0};
+let gpAnyWasDown = false;
+let gpNavDirWasZero = true;
+window.addEventListener("gamepadconnected", ()=>showBanner("🎮 CONTROLLER CONNECTED"));
+function pollGamepad(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let pad = null;
+  for(const p of pads) if(p){ pad = p; break; }
+  if(!pad){ gp.mx=0; gp.my=0; if(GP_DEBUG) $("gpdebug").textContent=""; return; }
+  // left stick (axes 0/1); fall back to d-pad buttons if axes are flat
+  let ax = pad.axes[0]||0, ay = pad.axes[1]||0;
+  if(Math.hypot(ax,ay) < GAMEPAD_DEADZONE){
+    ax = (pad.buttons[15]&&pad.buttons[15].pressed?1:0) - (pad.buttons[14]&&pad.buttons[14].pressed?1:0);
+    ay = (pad.buttons[13]&&pad.buttons[13].pressed?1:0) - (pad.buttons[12]&&pad.buttons[12].pressed?1:0);
+  }
+  gp.mx = Math.abs(ax)>GAMEPAD_DEADZONE ? ax : 0;
+  gp.my = Math.abs(ay)>GAMEPAD_DEADZONE ? ay : 0;
+  // level-up screen: navigate cards left/right with stick or d-pad, confirm with any button
+  if(state==="levelup"){
+    const navDir = Math.abs(gp.mx)>GAMEPAD_DEADZONE ? (gp.mx>0?1:-1) : 0;
+    if(navDir && gpNavDirWasZero) selectLevelupCard(levelupSel+navDir);
+    gpNavDirWasZero = navDir===0;
+  }
+  // any button (excluding d-pad, which is used for navigation only) acts as "confirm"
+  const anyDown = pad.buttons.some((b,i)=>b && b.pressed && !DPAD_BUTTONS.has(i));
+  if(anyDown && !gpAnyWasDown){
+    if(state==="menu") start();
+    else if(state==="over") start();
+    else if(state==="pause") togglePause();
+    else if(state==="levelup") confirmLevelupCard();
+  }
+  gpAnyWasDown = anyDown;
+  if(GP_DEBUG) $("gpdebug").textContent = `${pad.id} | axes:[${pad.axes.map(a=>a.toFixed(2)).join(",")}] | mx:${gp.mx.toFixed(2)} my:${gp.my.toFixed(2)}`;
+}
 
 /* ---------- game state ---------- */
 let state = "menu"; // menu | play | levelup | pause | over
@@ -266,6 +313,9 @@ const UPGRADES = [
 ];
 const upgradeLevels = {};
 
+let levelupCards = []; // {el, pick(){}}
+let levelupSel = 0;
+
 function openLevelUp(){
   state = "levelup";
   const pool = UPGRADES.filter(u => (upgradeLevels[u.id]||0) < u.max);
@@ -276,6 +326,8 @@ function openLevelUp(){
   }
   const wrap = document.getElementById("cards");
   wrap.innerHTML = "";
+  levelupCards = [];
+  levelupSel = 0;
   picks.forEach(u=>{
     const lvl = upgradeLevels[u.id]||0;
     const el = document.createElement("div");
@@ -284,16 +336,30 @@ function openLevelUp(){
       <div class="name">${u.name}</div>
       <div class="lvl">${lvl===0?"NEW":"LV "+lvl+" → "+(lvl+1)}</div>
       <div class="desc">${u.desc(lvl)}</div>`;
-    el.onclick = ()=>{
+    const pick = ()=>{
       upgradeLevels[u.id] = lvl+1;
       u.apply();
       document.getElementById("levelup").classList.add("hidden");
       state = "play";
       lastFrame = performance.now();
     };
+    el.onclick = pick;
+    const idx = levelupCards.length;
+    el.onmouseenter = ()=>selectLevelupCard(idx);
     wrap.appendChild(el);
+    levelupCards.push({el, pick});
   });
+  selectLevelupCard(0);
   document.getElementById("levelup").classList.remove("hidden");
+}
+
+function selectLevelupCard(i){
+  if(!levelupCards.length) return;
+  levelupSel = ((i % levelupCards.length) + levelupCards.length) % levelupCards.length;
+  levelupCards.forEach((c,idx)=>c.el.classList.toggle("sel", idx===levelupSel));
+}
+function confirmLevelupCard(){
+  if(levelupCards[levelupSel]) levelupCards[levelupSel].pick();
 }
 
 /* ---------- enemies ---------- */
@@ -438,6 +504,7 @@ function update(dt){
     const m = Math.hypot(touch.dx,touch.dy);
     if(m>12){mx=touch.dx/m;my=touch.dy/m}
   }
+  if(gp.mx||gp.my){mx=gp.mx;my=gp.my}
   const ml=Math.hypot(mx,my);
   if(ml>0){player.x += mx/ml*player.speed*dt; player.y += my/ml*player.speed*dt}
 
@@ -765,6 +832,7 @@ function draw(){
 /* ---------- loop ---------- */
 function loop(now){
   requestAnimationFrame(loop);
+  pollGamepad();
   const dt = Math.min((now - lastFrame)/1000, 0.05);
   lastFrame = now;
   if(state==="play") update(dt);
