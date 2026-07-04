@@ -10,7 +10,7 @@
   #game{display:block;position:absolute;left:0;top:0}
 
   /* ---------- HUD ---------- */
-  #hud{position:absolute;left:0;top:0;right:0;bottom:0}
+  #hud{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none}
   #topbar{position:absolute;top:0;left:0;right:0;padding:10px 14px}
   #xpwrap{height:14px;background:#1a1230;border:1px solid #2c2050;border-radius:7px;overflow:hidden}
   #xpbar{height:100%;width:0%;background:#39f0c3}
@@ -221,22 +221,30 @@ function touchStart(x,y){ touch.active=true; touch.sx=x; touch.sy=y; touch.dx=0;
 function touchMove(x,y){ if(touch.active){ touch.dx=x-touch.sx; touch.dy=y-touch.sy; } }
 function touchEnd(){ touch.active=false; touch.dx=0; touch.dy=0; }
 
-cv.addEventListener("touchstart", function(e){
+/* listen on document (old WebKit may ignore pointer-events:none on the HUD
+   overlay, which would swallow canvas touches); only act during play so
+   overlay buttons/cards still receive taps */
+document.addEventListener("touchstart", function(e){
+  if(state!=="play") return;
   e.preventDefault();
   var t = e.touches[0];
   touchStart(t.clientX, t.clientY);
 }, false);
-cv.addEventListener("touchmove", function(e){
+document.addEventListener("touchmove", function(e){
+  if(!touch.active) return;
   e.preventDefault();
   var t = e.touches[0];
   touchMove(t.clientX, t.clientY);
 }, false);
-cv.addEventListener("touchend", function(e){ e.preventDefault(); touchEnd(); }, false);
-cv.addEventListener("touchcancel", function(){ touchEnd(); }, false);
+document.addEventListener("touchend", function(e){
+  if(touch.active) e.preventDefault();
+  touchEnd();
+}, false);
+document.addEventListener("touchcancel", function(){ touchEnd(); }, false);
 
-cv.addEventListener("mousedown", function(e){ touchStart(e.clientX, e.clientY); }, false);
-cv.addEventListener("mousemove", function(e){ touchMove(e.clientX, e.clientY); }, false);
-window.addEventListener("mouseup", touchEnd, false);
+document.addEventListener("mousedown", function(e){ if(state==="play") touchStart(e.clientX, e.clientY); }, false);
+document.addEventListener("mousemove", function(e){ touchMove(e.clientX, e.clientY); }, false);
+document.addEventListener("mouseup", touchEnd, false);
 
 /* arrow keys / WASD via keyCode (old WebKit has no e.key) */
 var keys = {};
