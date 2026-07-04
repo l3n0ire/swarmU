@@ -221,8 +221,8 @@ window.addEventListener("keydown", e=>{
   if((e.key==="p"||e.key==="P"||e.key==="Escape") && state==="play") togglePause();
   else if((e.key==="p"||e.key==="P"||e.key==="Escape") && state==="pause") togglePause();
   if(state==="levelup"){
-    if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A") selectLevelupCard(levelupSel-1);
-    else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D") selectLevelupCard(levelupSel+1);
+    if(e.key==="ArrowLeft"||e.key==="a"||e.key==="A") navLevelupCard(-1);
+    else if(e.key==="ArrowRight"||e.key==="d"||e.key==="D") navLevelupCard(1);
     else if(e.key==="Enter"||e.key===" ") confirmLevelupCard();
   }
   if(["arrowup","arrowdown","arrowleft","arrowright"," "].includes(e.key.toLowerCase())) e.preventDefault();
@@ -259,7 +259,7 @@ function pollGamepad(){
   // level-up screen: navigate cards left/right with stick or d-pad, confirm with any button
   if(state==="levelup"){
     const navDir = Math.abs(gp.mx)>GAMEPAD_DEADZONE ? (gp.mx>0?1:-1) : 0;
-    if(navDir && gpNavDirWasZero) selectLevelupCard(levelupSel+navDir);
+    if(navDir && gpNavDirWasZero) navLevelupCard(navDir);
     gpNavDirWasZero = navDir===0;
   }
   // any button (excluding d-pad, which is used for navigation only) acts as "confirm"
@@ -328,7 +328,7 @@ function openLevelUp(){
   const wrap = document.getElementById("cards");
   wrap.innerHTML = "";
   levelupCards = [];
-  levelupSel = 0;
+  levelupSel = -1; // -1 = no highlight (misleading on keyboard/touch); set below if a controller is present
   picks.forEach(u=>{
     const lvl = upgradeLevels[u.id]||0;
     const el = document.createElement("div");
@@ -350,14 +350,22 @@ function openLevelUp(){
     wrap.appendChild(el);
     levelupCards.push({el, pick});
   });
-  selectLevelupCard(0);
+  if(hasGamepad()) selectLevelupCard(0);
   document.getElementById("levelup").classList.remove("hidden");
 }
 
+function hasGamepad(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  for(const p of pads) if(p) return true;
+  return false;
+}
 function selectLevelupCard(i){
   if(!levelupCards.length) return;
   levelupSel = ((i % levelupCards.length) + levelupCards.length) % levelupCards.length;
   levelupCards.forEach((c,idx)=>c.el.classList.toggle("sel", idx===levelupSel));
+}
+function navLevelupCard(dir){
+  selectLevelupCard(levelupSel<0 ? (dir>0?0:levelupCards.length-1) : levelupSel+dir);
 }
 function confirmLevelupCard(){
   if(levelupCards[levelupSel]) levelupCards[levelupSel].pick();
