@@ -4,7 +4,7 @@ A single-file roguelike bullet hell game. Survive increasingly difficult waves o
 
 ## How to Play
 
-Open [swarmU.html](swarmU.html) directly in a browser
+Open [index.html](index.html) directly in a browser
 
 ## Controls
 
